@@ -1,0 +1,132 @@
+project_name: mcp-grafana
+
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    - go mod tidy
+
+builds:
+  - id: mcp-grafana
+    main: ./cmd/server/main.go
+    binary: mcp-grafana
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    # Exclude Windows ARM64 as it's not commonly needed
+    ignore:
+      - goos: windows
+        goarch: arm64
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - format: tar.gz
+    # Use zip for Windows archives
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^build:"
+      - "^chore:"
+      - typo
+  groups:
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "Refactoring"
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 2
+    - title: "Documentation"
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 3
+    - title: "Other"
+      order: 999
+
+release:
+  # If set to auto, will mark the release as not ready for production
+  # in case there is an indicator for this in the tag e.g. v1.0.0-rc1
+  # If set to true, will mark the release as not ready for production.
+  prerelease: auto
+
+  # What to do with the release notes in case there the release already exists.
+  mode: replace
+
+  # Header template for the release body.
+  header: |
+    ## MCP Grafana Server {{ .Tag }}
+
+    This release contains the MCP (Model Context Protocol) server for Grafana operations.
+
+  # Footer template for the release body.
+  footer: |
+    ## Installation
+
+    ### Download Binary
+    Download the appropriate binary for your platform from the assets above.
+
+    ### macOS/Linux
+    ```bash
+    # Make executable
+    chmod +x mcp-grafana
+    # Move to PATH
+    sudo mv mcp-grafana /usr/local/bin/
+    ```
+
+    ### Windows
+    Add the executable to your PATH or place it in a directory that's already in your PATH.
+
+    ## Requirements
+
+    Set the GRAFANA_URL and GRAFANA_API_KEY env vars accordingly.
+
+    ## Usage
+
+    The MCP server is designed to be used with Claude and other MCP clients:
+
+    ```bash
+    # Run the server (communicates via stdio)
+    mcp-grafana
+
+    # Install with Claude Code
+    claude mcp add grafana mcp-grafana
+
+    # Use inspector to browse (requires nodejs)
+    npx @modelcontextprotocol/inspector mcp-grafana
+    ```
+    ---
+    **Full Changelog**: https://github.com/krmcbride/mcp-grafana/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+  # Disable the release if true.
+  disable: false
