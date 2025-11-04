@@ -6,5 +6,9 @@ import (
 )
 
 func RegisterMCPTools(s *server.MCPServer) {
-	// Register tools
+	// Register Loki query tools
+	RegisterListLokiLabelNames(s)
+	RegisterListLokiLabelValues(s)
+	RegisterQueryLokiStats(s)
+	RegisterQueryLokiLogs(s)
 }
