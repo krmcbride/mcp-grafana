@@ -8,4 +8,5 @@ import (
 
 func RegisterMCPResources(s *server.MCPServer) {
 	// Register resources
+	RegisterDatasourcesMCPResource(s)
 }
