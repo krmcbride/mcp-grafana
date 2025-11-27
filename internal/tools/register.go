@@ -18,6 +18,12 @@ func RegisterMCPTools(s *server.MCPServer) {
 	RegisterListPrometheusMetricNames(s)
 	RegisterQueryPrometheus(s)
 
+	// Register Tempo tracing tools
+	RegisterListTempoTagNames(s)
+	RegisterListTempoTagValues(s)
+	RegisterSearchTempoTraces(s)
+	RegisterGetTempoTrace(s)
+
 	// Register Dashboard tools
 	RegisterSearchDashboards(s)
 	RegisterGetDashboardSummary(s)
