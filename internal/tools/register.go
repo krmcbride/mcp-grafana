@@ -12,6 +12,12 @@ func RegisterMCPTools(s *server.MCPServer) {
 	RegisterQueryLokiStats(s)
 	RegisterQueryLokiLogs(s)
 
+	// Register Prometheus query tools
+	RegisterListPrometheusLabelNames(s)
+	RegisterListPrometheusLabelValues(s)
+	RegisterListPrometheusMetricNames(s)
+	RegisterQueryPrometheus(s)
+
 	// Register Alerting tools
 	RegisterListAlertRules(s)
 	RegisterGetAlertRuleByUID(s)
