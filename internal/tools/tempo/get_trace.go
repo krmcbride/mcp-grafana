@@ -1,4 +1,4 @@
-package tools
+package tempo
 
 import (
 	"context"
@@ -9,14 +9,13 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// GetTempoTraceParams defines the parameters for getting a Tempo trace by ID.
-type GetTempoTraceParams struct {
+type getTraceParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	TraceID       string `json:"traceId"`
 }
 
-func getTempoTraceHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params GetTempoTraceParams
+func getTraceHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params getTraceParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
@@ -25,12 +24,12 @@ func getTempoTraceHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 		return mcp.NewToolResultError("traceId is required"), nil
 	}
 
-	client, err := newTempoClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Tempo client: %v", err)), nil
 	}
 
-	trace, err := client.getTrace(ctx, params.TraceID)
+	trace, err := c.getTrace(ctx, params.TraceID)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -43,7 +42,7 @@ func getTempoTraceHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newGetTempoTraceTool() mcp.Tool {
+func newGetTraceTool() mcp.Tool {
 	return mcp.NewTool(
 		"get_tempo_trace",
 		mcp.WithDescription("Retrieves a complete trace by its trace ID from a Tempo datasource. "+
@@ -60,7 +59,7 @@ func newGetTempoTraceTool() mcp.Tool {
 	)
 }
 
-// RegisterGetTempoTrace registers the get_tempo_trace tool.
-func RegisterGetTempoTrace(s *server.MCPServer) {
-	s.AddTool(newGetTempoTraceTool(), getTempoTraceHandler)
+// RegisterGetTrace registers the get_tempo_trace tool.
+func RegisterGetTrace(s *server.MCPServer) {
+	s.AddTool(newGetTraceTool(), getTraceHandler)
 }

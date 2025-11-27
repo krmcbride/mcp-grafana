@@ -1,4 +1,4 @@
-package tools
+package tempo
 
 import (
 	"context"
@@ -9,16 +9,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListTempoTagValuesParams defines the parameters for listing Tempo tag values.
-type ListTempoTagValuesParams struct {
+type listTagValuesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	TagName       string `json:"tagName"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
 	EndRFC3339    string `json:"endRfc3339,omitempty"`
 }
 
-func listTempoTagValuesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListTempoTagValuesParams
+func listTagValuesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listTagValuesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
@@ -27,17 +26,17 @@ func listTempoTagValuesHandler(ctx context.Context, request mcp.CallToolRequest)
 		return mcp.NewToolResultError("tagName is required"), nil
 	}
 
-	client, err := newTempoClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Tempo client: %v", err)), nil
 	}
 
-	startUnix, endUnix, err := getDefaultTempoTimeRange(params.StartRFC3339, params.EndRFC3339)
+	startUnix, endUnix, err := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	tagValues, err := client.fetchTagValues(ctx, params.TagName, startUnix, endUnix)
+	tagValues, err := c.fetchTagValues(ctx, params.TagName, startUnix, endUnix)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -54,7 +53,7 @@ func listTempoTagValuesHandler(ctx context.Context, request mcp.CallToolRequest)
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListTempoTagValuesTool() mcp.Tool {
+func newListTagValuesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_tempo_tag_values",
 		mcp.WithDescription("Retrieves all unique values for a specific tag name in a Tempo datasource. "+
@@ -77,7 +76,7 @@ func newListTempoTagValuesTool() mcp.Tool {
 	)
 }
 
-// RegisterListTempoTagValues registers the list_tempo_tag_values tool.
-func RegisterListTempoTagValues(s *server.MCPServer) {
-	s.AddTool(newListTempoTagValuesTool(), listTempoTagValuesHandler)
+// RegisterListTagValues registers the list_tempo_tag_values tool.
+func RegisterListTagValues(s *server.MCPServer) {
+	s.AddTool(newListTagValuesTool(), listTagValuesHandler)
 }

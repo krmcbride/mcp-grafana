@@ -1,5 +1,5 @@
-// Package tools provides shared Loki client functionality for querying logs via Grafana datasource proxy.
-package tools
+// Package loki provides MCP tools for querying logs via Grafana's Loki datasource proxy.
+package loki
 
 import (
 	"bytes"
@@ -16,39 +16,36 @@ import (
 )
 
 const (
-	// DefaultLokiLogLimit is the default number of log lines to return if not specified
-	DefaultLokiLogLimit = 10
+	// DefaultLogLimit is the default number of log lines to return if not specified.
+	DefaultLogLimit = 10
 
-	// MaxLokiLogLimit is the maximum number of log lines that can be requested
-	MaxLokiLogLimit = 100
+	// MaxLogLimit is the maximum number of log lines that can be requested.
+	MaxLogLimit = 100
 )
 
-// lokiClient wraps an HTTP client for making Loki API requests through Grafana datasource proxy.
-type lokiClient struct {
+// client wraps an HTTP client for making Loki API requests through Grafana datasource proxy.
+type client struct {
 	httpClient *http.Client
 	baseURL    string
 }
 
-// newLokiClient creates a Loki client for the specified datasource UID.
-// It uses the Grafana datasource proxy endpoint to route requests to Loki.
-func newLokiClient(datasourceUID string) (*lokiClient, error) {
+// newClient creates a Loki client for the specified datasource UID.
+func newClient(datasourceUID string) (*client, error) {
 	httpClient, grafanaURL, err := grafana.GetHTTPClientForGrafana()
 	if err != nil {
 		return nil, err
 	}
 
-	// Construct the Grafana datasource proxy base URL
 	baseURL := fmt.Sprintf("%s/api/datasources/proxy/uid/%s", grafanaURL, datasourceUID)
 
-	return &lokiClient{
+	return &client{
 		httpClient: httpClient,
 		baseURL:    baseURL,
 	}, nil
 }
 
 // buildURL constructs a full URL for a Loki API endpoint.
-func (c *lokiClient) buildURL(path string) string {
-	// Ensure proper slash handling between baseURL and path
+func (c *client) buildURL(path string) string {
 	if !strings.HasSuffix(c.baseURL, "/") && !strings.HasPrefix(path, "/") {
 		return c.baseURL + "/" + path
 	} else if strings.HasSuffix(c.baseURL, "/") && strings.HasPrefix(path, "/") {
@@ -58,7 +55,7 @@ func (c *lokiClient) buildURL(path string) string {
 }
 
 // makeRequest executes an HTTP request to the Loki API and returns the response body.
-func (c *lokiClient) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
+func (c *client) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
 	fullURL := c.buildURL(path)
 
 	u, err := url.Parse(fullURL)
@@ -81,7 +78,6 @@ func (c *lokiClient) makeRequest(ctx context.Context, method, path string, param
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Check for non-200 status code
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("loki API returned status code %d: %s", resp.StatusCode, string(bodyBytes))
@@ -108,7 +104,7 @@ type labelResponse struct {
 }
 
 // fetchLabels is a helper to fetch label names or values from Loki.
-func (c *lokiClient) fetchLabels(ctx context.Context, path, startRFC3339, endRFC3339 string) ([]string, error) {
+func (c *client) fetchLabels(ctx context.Context, path, startRFC3339, endRFC3339 string) ([]string, error) {
 	params := url.Values{}
 	if startRFC3339 != "" {
 		params.Add("start", startRFC3339)
@@ -175,10 +171,10 @@ func addTimeRangeParams(params url.Values, startRFC3339, endRFC3339 string) erro
 // enforceLogLimit ensures the log limit is within acceptable bounds.
 func enforceLogLimit(requestedLimit int) int {
 	if requestedLimit <= 0 {
-		return DefaultLokiLogLimit
+		return DefaultLogLimit
 	}
-	if requestedLimit > MaxLokiLogLimit {
-		return MaxLokiLogLimit
+	if requestedLimit > MaxLogLimit {
+		return MaxLogLimit
 	}
 	return requestedLimit
 }

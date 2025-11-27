@@ -1,4 +1,4 @@
-package tools
+package prometheus
 
 import (
 	"context"
@@ -10,8 +10,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListPrometheusMetricNamesParams defines the parameters for listing Prometheus metric names.
-type ListPrometheusMetricNamesParams struct {
+type listMetricNamesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	Regex         string `json:"regex,omitempty"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
@@ -19,21 +18,21 @@ type ListPrometheusMetricNamesParams struct {
 	Limit         int    `json:"limit,omitempty"`
 }
 
-func listPrometheusMetricNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListPrometheusMetricNamesParams
+func listMetricNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listMetricNamesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newPrometheusClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Prometheus client: %v", err)), nil
 	}
 
-	startTime, endTime := getDefaultPrometheusTimeRange(params.StartRFC3339, params.EndRFC3339)
+	startTime, endTime := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 
 	// Fetch all metric names using __name__ label
-	metricNames, err := client.fetchLabelValues(ctx, "__name__", startTime, endTime)
+	metricNames, err := c.fetchLabelValues(ctx, "__name__", startTime, endTime)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -55,7 +54,7 @@ func listPrometheusMetricNamesHandler(ctx context.Context, request mcp.CallToolR
 	}
 
 	// Apply limit
-	limit := enforcePrometheusLimit(params.Limit, 0)
+	limit := enforceLimit(params.Limit, 0)
 	if len(metricNames) > limit {
 		metricNames = metricNames[:limit]
 	}
@@ -72,7 +71,7 @@ func listPrometheusMetricNamesHandler(ctx context.Context, request mcp.CallToolR
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListPrometheusMetricNamesTool() mcp.Tool {
+func newListMetricNamesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_prometheus_metric_names",
 		mcp.WithDescription("Lists metric names in a Prometheus datasource. "+
@@ -98,7 +97,7 @@ func newListPrometheusMetricNamesTool() mcp.Tool {
 	)
 }
 
-// RegisterListPrometheusMetricNames registers the list_prometheus_metric_names tool.
-func RegisterListPrometheusMetricNames(s *server.MCPServer) {
-	s.AddTool(newListPrometheusMetricNamesTool(), listPrometheusMetricNamesHandler)
+// RegisterListMetricNames registers the list_prometheus_metric_names tool.
+func RegisterListMetricNames(s *server.MCPServer) {
+	s.AddTool(newListMetricNamesTool(), listMetricNamesHandler)
 }

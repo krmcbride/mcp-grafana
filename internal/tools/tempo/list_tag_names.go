@@ -1,4 +1,4 @@
-package tools
+package tempo
 
 import (
 	"context"
@@ -9,31 +9,30 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListTempoTagNamesParams defines the parameters for listing Tempo tag names.
-type ListTempoTagNamesParams struct {
+type listTagNamesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	Scope         string `json:"scope,omitempty"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
 	EndRFC3339    string `json:"endRfc3339,omitempty"`
 }
 
-func listTempoTagNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListTempoTagNamesParams
+func listTagNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listTagNamesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newTempoClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Tempo client: %v", err)), nil
 	}
 
-	startUnix, endUnix, err := getDefaultTempoTimeRange(params.StartRFC3339, params.EndRFC3339)
+	startUnix, endUnix, err := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	tagNames, err := client.fetchTagNames(ctx, params.Scope, startUnix, endUnix)
+	tagNames, err := c.fetchTagNames(ctx, params.Scope, startUnix, endUnix)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -50,7 +49,7 @@ func listTempoTagNamesHandler(ctx context.Context, request mcp.CallToolRequest) 
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListTempoTagNamesTool() mcp.Tool {
+func newListTagNamesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_tempo_tag_names",
 		mcp.WithDescription("Lists all available tag names (attributes) in a Tempo datasource. "+
@@ -73,7 +72,7 @@ func newListTempoTagNamesTool() mcp.Tool {
 	)
 }
 
-// RegisterListTempoTagNames registers the list_tempo_tag_names tool.
-func RegisterListTempoTagNames(s *server.MCPServer) {
-	s.AddTool(newListTempoTagNamesTool(), listTempoTagNamesHandler)
+// RegisterListTagNames registers the list_tempo_tag_names tool.
+func RegisterListTagNames(s *server.MCPServer) {
+	s.AddTool(newListTagNamesTool(), listTagNamesHandler)
 }

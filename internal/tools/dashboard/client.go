@@ -1,4 +1,5 @@
-package tools
+// Package dashboard provides MCP tools for interacting with Grafana dashboards.
+package dashboard
 
 import (
 	"context"
@@ -11,27 +12,32 @@ import (
 	"github.com/krmcbride/mcp-grafana/internal/grafana"
 )
 
-// dashboardClient provides methods for interacting with Grafana's dashboard API.
-type dashboardClient struct {
+const (
+	// DefaultSearchLimit is the default limit for dashboard searches.
+	DefaultSearchLimit = 50
+)
+
+// client provides methods for interacting with Grafana's dashboard API.
+type client struct {
 	httpClient *http.Client
-	baseURL    string // e.g., http://grafana
+	baseURL    string
 }
 
-// newDashboardClient creates a new dashboard client.
-func newDashboardClient() (*dashboardClient, error) {
+// newClient creates a new dashboard client.
+func newClient() (*client, error) {
 	httpClient, grafanaURL, err := grafana.GetHTTPClientForGrafana()
 	if err != nil {
 		return nil, err
 	}
 
-	return &dashboardClient{
+	return &client{
 		httpClient: httpClient,
 		baseURL:    grafanaURL,
 	}, nil
 }
 
 // makeRequest performs an HTTP request and returns the response body.
-func (c *dashboardClient) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
+func (c *client) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
 	reqURL := c.baseURL + path
 	if len(params) > 0 {
 		reqURL += "?" + params.Encode()
@@ -78,7 +84,7 @@ type SearchResult struct {
 }
 
 // searchDashboards searches for dashboards.
-func (c *dashboardClient) searchDashboards(ctx context.Context, query string, tag string, limit int) ([]SearchResult, error) {
+func (c *client) searchDashboards(ctx context.Context, query string, tag string, limit int) ([]SearchResult, error) {
 	params := url.Values{}
 	params.Add("type", "dash-db")
 
@@ -105,14 +111,14 @@ func (c *dashboardClient) searchDashboards(ctx context.Context, query string, ta
 	return results, nil
 }
 
-// DashboardResponse represents the response from getting a dashboard by UID.
-type DashboardResponse struct {
-	Meta      DashboardMeta `json:"meta"`
-	Dashboard any           `json:"dashboard"`
+// Response represents the response from getting a dashboard by UID.
+type Response struct {
+	Meta      Meta `json:"meta"`
+	Dashboard any  `json:"dashboard"`
 }
 
-// DashboardMeta contains metadata about a dashboard.
-type DashboardMeta struct {
+// Meta contains metadata about a dashboard.
+type Meta struct {
 	Type        string `json:"type"`
 	CanSave     bool   `json:"canSave"`
 	CanEdit     bool   `json:"canEdit"`
@@ -136,14 +142,14 @@ type DashboardMeta struct {
 }
 
 // getDashboardByUID gets a dashboard by its UID.
-func (c *dashboardClient) getDashboardByUID(ctx context.Context, uid string) (*DashboardResponse, error) {
+func (c *client) getDashboardByUID(ctx context.Context, uid string) (*Response, error) {
 	path := fmt.Sprintf("/api/dashboards/uid/%s", url.PathEscape(uid))
 	bodyBytes, err := c.makeRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var response DashboardResponse
+	var response Response
 	if err := json.Unmarshal(bodyBytes, &response); err != nil {
 		return nil, fmt.Errorf("unmarshalling dashboard response: %w", err)
 	}
@@ -151,8 +157,8 @@ func (c *dashboardClient) getDashboardByUID(ctx context.Context, uid string) (*D
 	return &response, nil
 }
 
-// DashboardSummary provides a compact overview of a dashboard.
-type DashboardSummary struct {
+// Summary provides a compact overview of a dashboard.
+type Summary struct {
 	UID         string            `json:"uid"`
 	Title       string            `json:"title"`
 	Description string            `json:"description,omitempty"`

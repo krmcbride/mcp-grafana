@@ -2,12 +2,37 @@
 package grafana
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// Uint64String unmarshals a JSON string into a uint64.
+// Many Grafana backend services (Tempo, Loki, Mimir) use protobuf internally,
+// and protobuf's JSON serialization represents uint64 values as strings
+// to avoid JavaScript precision issues.
+type Uint64String uint64
+
+func (u *Uint64String) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*u = 0
+		return nil
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parsing uint64 from string %q: %w", s, err)
+	}
+	*u = Uint64String(v)
+	return nil
+}
 
 // GetHTTPClientForGrafana creates an authenticated HTTP client for Grafana API calls.
 // It reads configuration from environment variables:

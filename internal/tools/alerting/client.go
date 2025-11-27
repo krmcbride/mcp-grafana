@@ -1,4 +1,5 @@
-package tools
+// Package alerting provides MCP tools for interacting with Grafana's alerting API.
+package alerting
 
 import (
 	"context"
@@ -12,30 +13,31 @@ import (
 )
 
 const (
-	DefaultAlertRulesLimit = 100
+	// DefaultRulesLimit is the default limit for listing alert rules.
+	DefaultRulesLimit = 100
 )
 
-// alertingClient provides methods for interacting with Grafana's alerting API.
-type alertingClient struct {
+// client provides methods for interacting with Grafana's alerting API.
+type client struct {
 	httpClient *http.Client
-	baseURL    string // e.g., http://grafana
+	baseURL    string
 }
 
-// newAlertingClient creates a new alerting client.
-func newAlertingClient() (*alertingClient, error) {
+// newClient creates a new alerting client.
+func newClient() (*client, error) {
 	httpClient, grafanaURL, err := grafana.GetHTTPClientForGrafana()
 	if err != nil {
 		return nil, err
 	}
 
-	return &alertingClient{
+	return &client{
 		httpClient: httpClient,
 		baseURL:    grafanaURL,
 	}, nil
 }
 
 // makeRequest performs an HTTP request and returns the response body.
-func (c *alertingClient) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
+func (c *client) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
 	reqURL := c.baseURL + path
 	if len(params) > 0 {
 		reqURL += "?" + params.Encode()
@@ -64,8 +66,8 @@ func (c *alertingClient) makeRequest(ctx context.Context, method, path string, p
 	return bodyBytes, nil
 }
 
-// AlertRule represents an alert rule from the provisioning API.
-type AlertRule struct {
+// Rule represents an alert rule from the provisioning API.
+type Rule struct {
 	UID          string            `json:"uid"`
 	Title        string            `json:"title"`
 	FolderUID    string            `json:"folderUID"`
@@ -76,13 +78,13 @@ type AlertRule struct {
 	Condition    string            `json:"condition"`
 	NoDataState  string            `json:"noDataState"`
 	ExecErrState string            `json:"execErrState"`
-	Data         []AlertQueryData  `json:"data,omitempty"`
+	Data         []QueryData       `json:"data,omitempty"`
 	Updated      string            `json:"updated,omitempty"`
 	IsPaused     bool              `json:"isPaused"`
 }
 
-// AlertQueryData represents query data within an alert rule.
-type AlertQueryData struct {
+// QueryData represents query data within an alert rule.
+type QueryData struct {
 	RefID             string         `json:"refId"`
 	QueryType         string         `json:"queryType,omitempty"`
 	RelativeTimeRange map[string]int `json:"relativeTimeRange,omitempty"`
@@ -90,8 +92,8 @@ type AlertQueryData struct {
 	Model             any            `json:"model,omitempty"`
 }
 
-// AlertRuleSummary provides a compact summary of an alert rule.
-type AlertRuleSummary struct {
+// RuleSummary provides a compact summary of an alert rule.
+type RuleSummary struct {
 	UID         string            `json:"uid"`
 	Title       string            `json:"title"`
 	State       string            `json:"state,omitempty"`
@@ -104,54 +106,24 @@ type AlertRuleSummary struct {
 	IsPaused    bool              `json:"isPaused"`
 }
 
-// RulerResponse represents the response from the Ruler API.
-type RulerResponse map[string][]RulerRuleGroup
-
-// RulerRuleGroup represents a rule group from the Ruler API.
-type RulerRuleGroup struct {
-	Name     string      `json:"name"`
-	File     string      `json:"file"`
-	Interval string      `json:"interval,omitempty"`
-	Rules    []RulerRule `json:"rules"`
-}
-
-// RulerRule represents a rule from the Ruler API.
-type RulerRule struct {
-	GrafanaAlert *GrafanaAlertRule `json:"grafana_alert,omitempty"`
-	Expr         string            `json:"expr,omitempty"`
-	For          string            `json:"for,omitempty"`
-	Labels       map[string]string `json:"labels,omitempty"`
-	Annotations  map[string]string `json:"annotations,omitempty"`
-}
-
-// GrafanaAlertRule represents the Grafana-specific alert rule data.
-type GrafanaAlertRule struct {
-	UID          string `json:"uid"`
-	Title        string `json:"title"`
-	Condition    string `json:"condition"`
-	NoDataState  string `json:"no_data_state"`
-	ExecErrState string `json:"exec_err_state"`
-	IsPaused     bool   `json:"is_paused"`
-}
-
-// PrometheusRulesResponse represents the response from the Prometheus-style rules API.
-type PrometheusRulesResponse struct {
+// prometheusRulesResponse represents the response from the Prometheus-style rules API.
+type prometheusRulesResponse struct {
 	Status string `json:"status"`
 	Data   struct {
-		Groups []PrometheusRuleGroup `json:"groups"`
+		Groups []prometheusRuleGroup `json:"groups"`
 	} `json:"data"`
 }
 
-// PrometheusRuleGroup represents a rule group.
-type PrometheusRuleGroup struct {
+// prometheusRuleGroup represents a rule group.
+type prometheusRuleGroup struct {
 	Name     string           `json:"name"`
 	File     string           `json:"file"`
-	Rules    []PrometheusRule `json:"rules"`
+	Rules    []prometheusRule `json:"rules"`
 	Interval float64          `json:"interval"`
 }
 
-// PrometheusRule represents a Prometheus-style rule with state.
-type PrometheusRule struct {
+// prometheusRule represents a Prometheus-style rule with state.
+type prometheusRule struct {
 	Name           string            `json:"name"`
 	Query          string            `json:"query"`
 	Duration       float64           `json:"duration"`
@@ -164,8 +136,8 @@ type PrometheusRule struct {
 	EvaluationTime float64           `json:"evaluationTime,omitempty"`
 }
 
-// listAlertRules lists all alert rules from the provisioning API.
-func (c *alertingClient) listAlertRules(ctx context.Context, limit int) ([]AlertRule, error) {
+// listRules lists all alert rules from the provisioning API.
+func (c *client) listRules(ctx context.Context, limit int) ([]Rule, error) {
 	params := url.Values{}
 	if limit > 0 {
 		params.Add("limit", fmt.Sprintf("%d", limit))
@@ -176,7 +148,7 @@ func (c *alertingClient) listAlertRules(ctx context.Context, limit int) ([]Alert
 		return nil, err
 	}
 
-	var rules []AlertRule
+	var rules []Rule
 	if err := json.Unmarshal(bodyBytes, &rules); err != nil {
 		return nil, fmt.Errorf("unmarshalling alert rules: %w", err)
 	}
@@ -184,15 +156,15 @@ func (c *alertingClient) listAlertRules(ctx context.Context, limit int) ([]Alert
 	return rules, nil
 }
 
-// getAlertRuleByUID gets a specific alert rule by UID.
-func (c *alertingClient) getAlertRuleByUID(ctx context.Context, uid string) (*AlertRule, error) {
+// getRuleByUID gets a specific alert rule by UID.
+func (c *client) getRuleByUID(ctx context.Context, uid string) (*Rule, error) {
 	path := fmt.Sprintf("/api/v1/provisioning/alert-rules/%s", url.PathEscape(uid))
 	bodyBytes, err := c.makeRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var rule AlertRule
+	var rule Rule
 	if err := json.Unmarshal(bodyBytes, &rule); err != nil {
 		return nil, fmt.Errorf("unmarshalling alert rule: %w", err)
 	}
@@ -200,25 +172,25 @@ func (c *alertingClient) getAlertRuleByUID(ctx context.Context, uid string) (*Al
 	return &rule, nil
 }
 
-// getAlertRulesWithState gets alert rules with their current state from the Prometheus-style API.
-func (c *alertingClient) getAlertRulesWithState(ctx context.Context) ([]AlertRuleSummary, error) {
+// getRulesWithState gets alert rules with their current state from the Prometheus-style API.
+func (c *client) getRulesWithState(ctx context.Context) ([]RuleSummary, error) {
 	bodyBytes, err := c.makeRequest(ctx, "GET", "/api/prometheus/grafana/api/v1/rules", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var resp PrometheusRulesResponse
+	var resp prometheusRulesResponse
 	if err := json.Unmarshal(bodyBytes, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshalling rules response: %w", err)
 	}
 
-	var summaries []AlertRuleSummary
+	var summaries []RuleSummary
 	for _, group := range resp.Data.Groups {
 		for _, rule := range group.Rules {
 			if rule.Type != "alerting" {
 				continue // Skip recording rules
 			}
-			summary := AlertRuleSummary{
+			summary := RuleSummary{
 				Title:       rule.Name,
 				State:       rule.State,
 				Health:      rule.Health,

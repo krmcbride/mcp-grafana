@@ -1,4 +1,4 @@
-package tools
+package loki
 
 import (
 	"context"
@@ -9,21 +9,20 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListLokiLabelValuesParams defines parameters for listing Loki label values.
-type ListLokiLabelValuesParams struct {
+type listLabelValuesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	LabelName     string `json:"labelName"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
 	EndRFC3339    string `json:"endRfc3339,omitempty"`
 }
 
-func listLokiLabelValuesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListLokiLabelValuesParams
+func listLabelValuesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listLabelValuesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newLokiClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Loki client: %v", err)), nil
 	}
@@ -31,7 +30,7 @@ func listLokiLabelValuesHandler(ctx context.Context, request mcp.CallToolRequest
 	startTime, endTime := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 
 	path := fmt.Sprintf("/loki/api/v1/label/%s/values", params.LabelName)
-	values, err := client.fetchLabels(ctx, path, startTime, endTime)
+	values, err := c.fetchLabels(ctx, path, startTime, endTime)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -48,7 +47,7 @@ func listLokiLabelValuesHandler(ctx context.Context, request mcp.CallToolRequest
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListLokiLabelValuesTool() mcp.Tool {
+func newListLabelValuesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_loki_label_values",
 		mcp.WithDescription("Retrieves all unique values for a specific label name within a Loki datasource and time range. Returns a list of string values (e.g., for labelName=\"env\", might return [\"prod\", \"staging\", \"dev\"]). Useful for discovering filter options. Defaults to the last hour if time range is omitted."),
@@ -69,7 +68,7 @@ func newListLokiLabelValuesTool() mcp.Tool {
 	)
 }
 
-// RegisterListLokiLabelValues registers the list_loki_label_values tool with the MCP server.
-func RegisterListLokiLabelValues(s *server.MCPServer) {
-	s.AddTool(newListLokiLabelValuesTool(), listLokiLabelValuesHandler)
+// RegisterListLabelValues registers the list_loki_label_values tool with the MCP server.
+func RegisterListLabelValues(s *server.MCPServer) {
+	s.AddTool(newListLabelValuesTool(), listLabelValuesHandler)
 }

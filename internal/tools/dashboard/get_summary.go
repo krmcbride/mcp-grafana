@@ -1,4 +1,4 @@
-package tools
+package dashboard
 
 import (
 	"context"
@@ -9,13 +9,12 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// GetDashboardSummaryParams defines the parameters for getting a dashboard summary.
-type GetDashboardSummaryParams struct {
+type getSummaryParams struct {
 	UID string `json:"uid"`
 }
 
-func getDashboardSummaryHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params GetDashboardSummaryParams
+func getSummaryHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params getSummaryParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
@@ -24,17 +23,17 @@ func getDashboardSummaryHandler(ctx context.Context, request mcp.CallToolRequest
 		return mcp.NewToolResultError("uid is required"), nil
 	}
 
-	client, err := newDashboardClient()
+	c, err := newClient()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating dashboard client: %v", err)), nil
 	}
 
-	dashResponse, err := client.getDashboardByUID(ctx, params.UID)
+	dashResponse, err := c.getDashboardByUID(ctx, params.UID)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	summary := buildDashboardSummary(params.UID, dashResponse)
+	summary := buildSummary(params.UID, dashResponse)
 
 	jsonData, err := json.MarshalIndent(summary, "", "  ")
 	if err != nil {
@@ -44,9 +43,9 @@ func getDashboardSummaryHandler(ctx context.Context, request mcp.CallToolRequest
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-// buildDashboardSummary builds a summary from a dashboard response.
-func buildDashboardSummary(uid string, dashResponse *DashboardResponse) *DashboardSummary {
-	summary := &DashboardSummary{
+// buildSummary builds a summary from a dashboard response.
+func buildSummary(uid string, dashResponse *Response) *Summary {
+	summary := &Summary{
 		UID:         uid,
 		FolderTitle: dashResponse.Meta.FolderTitle,
 		URL:         dashResponse.Meta.URL,
@@ -131,7 +130,7 @@ func buildDashboardSummary(uid string, dashResponse *DashboardResponse) *Dashboa
 	return summary
 }
 
-func newGetDashboardSummaryTool() mcp.Tool {
+func newGetSummaryTool() mcp.Tool {
 	return mcp.NewTool(
 		"get_dashboard_summary",
 		mcp.WithDescription("Gets a compact summary of a Grafana dashboard including title, description, tags, "+
@@ -145,7 +144,7 @@ func newGetDashboardSummaryTool() mcp.Tool {
 	)
 }
 
-// RegisterGetDashboardSummary registers the get_dashboard_summary tool.
-func RegisterGetDashboardSummary(s *server.MCPServer) {
-	s.AddTool(newGetDashboardSummaryTool(), getDashboardSummaryHandler)
+// RegisterGetSummary registers the get_dashboard_summary tool.
+func RegisterGetSummary(s *server.MCPServer) {
+	s.AddTool(newGetSummaryTool(), getSummaryHandler)
 }

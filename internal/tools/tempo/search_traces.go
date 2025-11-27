@@ -1,4 +1,4 @@
-package tools
+package tempo
 
 import (
 	"context"
@@ -9,8 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// SearchTempoTracesParams defines the parameters for searching Tempo traces.
-type SearchTempoTracesParams struct {
+type searchTracesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	Query         string `json:"query,omitempty"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
@@ -18,25 +17,25 @@ type SearchTempoTracesParams struct {
 	Limit         int    `json:"limit,omitempty"`
 }
 
-func searchTempoTracesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params SearchTempoTracesParams
+func searchTracesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params searchTracesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newTempoClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Tempo client: %v", err)), nil
 	}
 
-	startUnix, endUnix, err := getDefaultTempoTimeRange(params.StartRFC3339, params.EndRFC3339)
+	startUnix, endUnix, err := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	limit := enforceTempoTraceLimit(params.Limit)
+	limit := enforceTraceLimit(params.Limit)
 
-	searchResult, err := client.searchTraces(ctx, params.Query, startUnix, endUnix, limit)
+	searchResult, err := c.searchTraces(ctx, params.Query, startUnix, endUnix, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -49,7 +48,7 @@ func searchTempoTracesHandler(ctx context.Context, request mcp.CallToolRequest) 
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newSearchTempoTracesTool() mcp.Tool {
+func newSearchTracesTool() mcp.Tool {
 	return mcp.NewTool(
 		"search_tempo_traces",
 		mcp.WithDescription("Searches for traces in a Tempo datasource using TraceQL. "+
@@ -76,7 +75,7 @@ func newSearchTempoTracesTool() mcp.Tool {
 	)
 }
 
-// RegisterSearchTempoTraces registers the search_tempo_traces tool.
-func RegisterSearchTempoTraces(s *server.MCPServer) {
-	s.AddTool(newSearchTempoTracesTool(), searchTempoTracesHandler)
+// RegisterSearchTraces registers the search_tempo_traces tool.
+func RegisterSearchTraces(s *server.MCPServer) {
+	s.AddTool(newSearchTracesTool(), searchTracesHandler)
 }

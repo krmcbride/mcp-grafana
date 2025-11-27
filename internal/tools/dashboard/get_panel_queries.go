@@ -1,4 +1,4 @@
-package tools
+package dashboard
 
 import (
 	"context"
@@ -9,13 +9,12 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// GetDashboardPanelQueriesParams defines the parameters for getting dashboard panel queries.
-type GetDashboardPanelQueriesParams struct {
+type getPanelQueriesParams struct {
 	UID string `json:"uid"`
 }
 
-func getDashboardPanelQueriesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params GetDashboardPanelQueriesParams
+func getPanelQueriesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params getPanelQueriesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
@@ -24,12 +23,12 @@ func getDashboardPanelQueriesHandler(ctx context.Context, request mcp.CallToolRe
 		return mcp.NewToolResultError("uid is required"), nil
 	}
 
-	client, err := newDashboardClient()
+	c, err := newClient()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating dashboard client: %v", err)), nil
 	}
 
-	dashResponse, err := client.getDashboardByUID(ctx, params.UID)
+	dashResponse, err := c.getDashboardByUID(ctx, params.UID)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -49,7 +48,7 @@ func getDashboardPanelQueriesHandler(ctx context.Context, request mcp.CallToolRe
 }
 
 // extractPanelQueries extracts all queries from a dashboard's panels.
-func extractPanelQueries(dashResponse *DashboardResponse) []PanelQuery {
+func extractPanelQueries(dashResponse *Response) []PanelQuery {
 	var queries []PanelQuery
 
 	dashMap, ok := dashResponse.Dashboard.(map[string]any)
@@ -142,7 +141,7 @@ func extractPanelQueries(dashResponse *DashboardResponse) []PanelQuery {
 	return queries
 }
 
-func newGetDashboardPanelQueriesTool() mcp.Tool {
+func newGetPanelQueriesTool() mcp.Tool {
 	return mcp.NewTool(
 		"get_dashboard_panel_queries",
 		mcp.WithDescription("Extracts all queries from a Grafana dashboard's panels. "+
@@ -157,7 +156,7 @@ func newGetDashboardPanelQueriesTool() mcp.Tool {
 	)
 }
 
-// RegisterGetDashboardPanelQueries registers the get_dashboard_panel_queries tool.
-func RegisterGetDashboardPanelQueries(s *server.MCPServer) {
-	s.AddTool(newGetDashboardPanelQueriesTool(), getDashboardPanelQueriesHandler)
+// RegisterGetPanelQueries registers the get_dashboard_panel_queries tool.
+func RegisterGetPanelQueries(s *server.MCPServer) {
+	s.AddTool(newGetPanelQueriesTool(), getPanelQueriesHandler)
 }

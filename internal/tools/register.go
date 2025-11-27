@@ -2,34 +2,39 @@
 package tools
 
 import (
+	"github.com/krmcbride/mcp-grafana/internal/tools/alerting"
+	"github.com/krmcbride/mcp-grafana/internal/tools/dashboard"
+	"github.com/krmcbride/mcp-grafana/internal/tools/loki"
+	"github.com/krmcbride/mcp-grafana/internal/tools/prometheus"
+	"github.com/krmcbride/mcp-grafana/internal/tools/tempo"
 	"github.com/mark3labs/mcp-go/server"
 )
 
 func RegisterMCPTools(s *server.MCPServer) {
 	// Register Loki query tools
-	RegisterListLokiLabelNames(s)
-	RegisterListLokiLabelValues(s)
-	RegisterQueryLokiStats(s)
-	RegisterQueryLokiLogs(s)
+	loki.RegisterListLabelNames(s)
+	loki.RegisterListLabelValues(s)
+	loki.RegisterQueryStats(s)
+	loki.RegisterQueryLogs(s)
 
 	// Register Prometheus query tools
-	RegisterListPrometheusLabelNames(s)
-	RegisterListPrometheusLabelValues(s)
-	RegisterListPrometheusMetricNames(s)
-	RegisterQueryPrometheus(s)
+	prometheus.RegisterListLabelNames(s)
+	prometheus.RegisterListLabelValues(s)
+	prometheus.RegisterListMetricNames(s)
+	prometheus.RegisterQuery(s)
 
 	// Register Tempo tracing tools
-	RegisterListTempoTagNames(s)
-	RegisterListTempoTagValues(s)
-	RegisterSearchTempoTraces(s)
-	RegisterGetTempoTrace(s)
+	tempo.RegisterListTagNames(s)
+	tempo.RegisterListTagValues(s)
+	tempo.RegisterSearchTraces(s)
+	tempo.RegisterGetTrace(s)
 
 	// Register Dashboard tools
-	RegisterSearchDashboards(s)
-	RegisterGetDashboardSummary(s)
-	RegisterGetDashboardPanelQueries(s)
+	dashboard.RegisterSearch(s)
+	dashboard.RegisterGetSummary(s)
+	dashboard.RegisterGetPanelQueries(s)
 
 	// Register Alerting tools
-	RegisterListAlertRules(s)
-	RegisterGetAlertRuleByUID(s)
+	alerting.RegisterListRules(s)
+	alerting.RegisterGetRuleByUID(s)
 }

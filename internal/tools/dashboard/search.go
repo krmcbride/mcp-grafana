@@ -1,4 +1,4 @@
-package tools
+package dashboard
 
 import (
 	"context"
@@ -9,34 +9,29 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const (
-	DefaultDashboardSearchLimit = 50
-)
-
-// SearchDashboardsParams defines the parameters for searching dashboards.
-type SearchDashboardsParams struct {
+type searchParams struct {
 	Query string `json:"query,omitempty"`
 	Tag   string `json:"tag,omitempty"`
 	Limit int    `json:"limit,omitempty"`
 }
 
-func searchDashboardsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params SearchDashboardsParams
+func searchHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params searchParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newDashboardClient()
+	c, err := newClient()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating dashboard client: %v", err)), nil
 	}
 
 	limit := params.Limit
 	if limit <= 0 {
-		limit = DefaultDashboardSearchLimit
+		limit = DefaultSearchLimit
 	}
 
-	results, err := client.searchDashboards(ctx, params.Query, params.Tag, limit)
+	results, err := c.searchDashboards(ctx, params.Query, params.Tag, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -53,7 +48,7 @@ func searchDashboardsHandler(ctx context.Context, request mcp.CallToolRequest) (
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newSearchDashboardsTool() mcp.Tool {
+func newSearchTool() mcp.Tool {
 	return mcp.NewTool(
 		"search_dashboards",
 		mcp.WithDescription("Searches for Grafana dashboards by query string or tag. "+
@@ -71,7 +66,7 @@ func newSearchDashboardsTool() mcp.Tool {
 	)
 }
 
-// RegisterSearchDashboards registers the search_dashboards tool.
-func RegisterSearchDashboards(s *server.MCPServer) {
-	s.AddTool(newSearchDashboardsTool(), searchDashboardsHandler)
+// RegisterSearch registers the search_dashboards tool.
+func RegisterSearch(s *server.MCPServer) {
+	s.AddTool(newSearchTool(), searchHandler)
 }

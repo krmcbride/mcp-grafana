@@ -1,4 +1,4 @@
-package tools
+package prometheus
 
 import (
 	"context"
@@ -9,12 +9,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-const (
-	DefaultPrometheusStepSeconds = 60
-)
-
-// QueryPrometheusParams defines the parameters for querying Prometheus.
-type QueryPrometheusParams struct {
+type queryParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	Expr          string `json:"expr"`
 	QueryType     string `json:"queryType,omitempty"`    // "instant" or "range", defaults to "instant"
@@ -24,8 +19,8 @@ type QueryPrometheusParams struct {
 	StepSeconds   int    `json:"stepSeconds,omitempty"`  // For range queries
 }
 
-func queryPrometheusHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params QueryPrometheusParams
+func queryHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params queryParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
@@ -34,7 +29,7 @@ func queryPrometheusHandler(ctx context.Context, request mcp.CallToolRequest) (*
 		return mcp.NewToolResultError("expr (PromQL expression) is required"), nil
 	}
 
-	client, err := newPrometheusClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Prometheus client: %v", err)), nil
 	}
@@ -44,24 +39,24 @@ func queryPrometheusHandler(ctx context.Context, request mcp.CallToolRequest) (*
 		queryType = "instant"
 	}
 
-	var result *PrometheusQueryResult
+	var result *QueryResult
 
 	switch queryType {
 	case "instant":
-		result, err = client.query(ctx, params.Expr, params.TimeRFC3339)
+		result, err = c.query(ctx, params.Expr, params.TimeRFC3339)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("executing instant query: %v", err)), nil
 		}
 
 	case "range":
-		startTime, endTime := getDefaultPrometheusTimeRange(params.StartRFC3339, params.EndRFC3339)
+		startTime, endTime := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 
 		stepSeconds := params.StepSeconds
 		if stepSeconds <= 0 {
-			stepSeconds = DefaultPrometheusStepSeconds
+			stepSeconds = DefaultStepSeconds
 		}
 
-		result, err = client.queryRange(ctx, params.Expr, startTime, endTime, stepSeconds)
+		result, err = c.queryRange(ctx, params.Expr, startTime, endTime, stepSeconds)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("executing range query: %v", err)), nil
 		}
@@ -78,7 +73,7 @@ func queryPrometheusHandler(ctx context.Context, request mcp.CallToolRequest) (*
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newQueryPrometheusTool() mcp.Tool {
+func newQueryTool() mcp.Tool {
 	return mcp.NewTool(
 		"query_prometheus",
 		mcp.WithDescription("Executes a PromQL query against a Prometheus datasource. "+
@@ -112,7 +107,7 @@ func newQueryPrometheusTool() mcp.Tool {
 	)
 }
 
-// RegisterQueryPrometheus registers the query_prometheus tool.
-func RegisterQueryPrometheus(s *server.MCPServer) {
-	s.AddTool(newQueryPrometheusTool(), queryPrometheusHandler)
+// RegisterQuery registers the query_prometheus tool.
+func RegisterQuery(s *server.MCPServer) {
+	s.AddTool(newQueryTool(), queryHandler)
 }

@@ -1,4 +1,4 @@
-package tools
+package alerting
 
 import (
 	"context"
@@ -9,47 +9,45 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListAlertRulesParams defines the parameters for listing alert rules.
-type ListAlertRulesParams struct {
-	IncludeState bool `json:"includeState,omitempty"`
+type listRulesParams struct {
 	Limit        int  `json:"limit,omitempty"`
+	IncludeState bool `json:"includeState,omitempty"`
 }
 
 // alertStateKey creates a key for matching alerts across APIs.
-// Uses title + ruleGroup since the Prometheus API doesn't return UIDs.
 func alertStateKey(title, ruleGroup string) string {
 	return title + "|" + ruleGroup
 }
 
-func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListAlertRulesParams
+func listRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listRulesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newAlertingClient()
+	c, err := newClient()
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating alerting client: %v", err)), nil
 	}
 
 	limit := params.Limit
 	if limit <= 0 {
-		limit = DefaultAlertRulesLimit
+		limit = DefaultRulesLimit
 	}
 
 	// Always get rules from provisioning API (this has UIDs)
-	rules, err := client.listAlertRules(ctx, limit)
+	rules, err := c.listRules(ctx, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	// Build state map if state is requested
-	stateMap := make(map[string]AlertRuleSummary)
+	stateMap := make(map[string]RuleSummary)
 	if params.IncludeState {
-		stateRules, stateErr := client.getAlertRulesWithState(ctx)
+		stateRules, stateErr := c.getRulesWithState(ctx)
 		if stateErr != nil {
-			// Log but continue - we can still return rules without state
-			// State is nice-to-have, UIDs are essential
+			// Log but don't fail - we still have the rules, just without state
+			// State enrichment is best-effort
 		} else {
 			for _, sr := range stateRules {
 				key := alertStateKey(sr.Title, sr.RuleGroup)
@@ -59,9 +57,9 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 	}
 
 	// Convert to summaries, enriching with state if available
-	summaries := make([]AlertRuleSummary, 0, len(rules))
+	summaries := make([]RuleSummary, 0, len(rules))
 	for _, r := range rules {
-		summary := AlertRuleSummary{
+		summary := RuleSummary{
 			UID:         r.UID,
 			Title:       r.Title,
 			FolderUID:   r.FolderUID,
@@ -72,7 +70,6 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 			IsPaused:    r.IsPaused,
 		}
 
-		// Enrich with state if available
 		if params.IncludeState {
 			key := alertStateKey(r.Title, r.RuleGroup)
 			if stateSummary, ok := stateMap[key]; ok {
@@ -84,10 +81,6 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 		summaries = append(summaries, summary)
 	}
 
-	if len(summaries) == 0 {
-		summaries = []AlertRuleSummary{}
-	}
-
 	jsonData, err := json.MarshalIndent(summaries, "", "  ")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("marshalling result: %v", err)), nil
@@ -96,23 +89,23 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListAlertRulesTool() mcp.Tool {
+func newListRulesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_alert_rules",
-		mcp.WithDescription("Lists Grafana alert rules. "+
-			"Returns a summary of each alert including UID, title, rule group, labels, and annotations. "+
-			"Set includeState=true to also include current state (firing, pending, inactive) and health information. "+
-			"Note: When includeState=true, the response comes from a different API and may have slightly different fields."),
-		mcp.WithBoolean("includeState",
-			mcp.Description("If true, include current alert state (firing, pending, inactive) and health. Default: false"),
-		),
+		mcp.WithDescription("Lists Grafana alert rules with optional state information. "+
+			"Returns rule UID, title, folder, group, labels, annotations, and pause status. "+
+			"When includeState is true, also includes current firing state and health. "+
+			"Use get_alert_rule_by_uid for full rule details including query definitions."),
 		mcp.WithNumber("limit",
-			mcp.Description("Maximum number of alert rules to return (default: 100)"),
+			mcp.Description("Maximum number of rules to return (default: 100)"),
+		),
+		mcp.WithBoolean("includeState",
+			mcp.Description("Include current firing state and health from Prometheus-style API (default: false)"),
 		),
 	)
 }
 
-// RegisterListAlertRules registers the list_alert_rules tool.
-func RegisterListAlertRules(s *server.MCPServer) {
-	s.AddTool(newListAlertRulesTool(), listAlertRulesHandler)
+// RegisterListRules registers the list_alert_rules tool.
+func RegisterListRules(s *server.MCPServer) {
+	s.AddTool(newListRulesTool(), listRulesHandler)
 }

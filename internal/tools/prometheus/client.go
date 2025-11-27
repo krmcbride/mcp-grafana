@@ -1,4 +1,5 @@
-package tools
+// Package prometheus provides MCP tools for querying metrics via Grafana's Prometheus datasource proxy.
+package prometheus
 
 import (
 	"context"
@@ -13,31 +14,35 @@ import (
 )
 
 const (
-	DefaultPrometheusLimit = 100
+	// DefaultLimit is the default limit for list operations.
+	DefaultLimit = 100
+
+	// DefaultStepSeconds is the default step interval for range queries.
+	DefaultStepSeconds = 60
 )
 
-// prometheusClient provides methods for interacting with Prometheus via Grafana's datasource proxy.
-type prometheusClient struct {
+// client provides methods for interacting with Prometheus via Grafana's datasource proxy.
+type client struct {
 	httpClient *http.Client
-	baseURL    string // e.g., http://grafana/api/datasources/proxy/uid/{uid}
+	baseURL    string
 }
 
-// newPrometheusClient creates a new Prometheus client for the given datasource UID.
-func newPrometheusClient(datasourceUID string) (*prometheusClient, error) {
+// newClient creates a new Prometheus client for the given datasource UID.
+func newClient(datasourceUID string) (*client, error) {
 	httpClient, grafanaURL, err := grafana.GetHTTPClientForGrafana()
 	if err != nil {
 		return nil, err
 	}
 
 	baseURL := fmt.Sprintf("%s/api/datasources/proxy/uid/%s", grafanaURL, datasourceUID)
-	return &prometheusClient{
+	return &client{
 		httpClient: httpClient,
 		baseURL:    baseURL,
 	}, nil
 }
 
 // makeRequest performs an HTTP request and returns the response body.
-func (c *prometheusClient) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
+func (c *client) makeRequest(ctx context.Context, method, path string, params url.Values) ([]byte, error) {
 	reqURL := c.baseURL + path
 	if len(params) > 0 {
 		reqURL += "?" + params.Encode()
@@ -66,16 +71,16 @@ func (c *prometheusClient) makeRequest(ctx context.Context, method, path string,
 	return bodyBytes, nil
 }
 
-// prometheusResponse represents the standard Prometheus API response wrapper.
-type prometheusResponse struct {
+// response represents the standard Prometheus API response wrapper.
+type response struct {
 	Status string          `json:"status"`
 	Data   json.RawMessage `json:"data"`
 	Error  string          `json:"error,omitempty"`
 }
 
-// parsePrometheusResponse parses a Prometheus API response and extracts the data.
-func parsePrometheusResponse(bodyBytes []byte) (json.RawMessage, error) {
-	var resp prometheusResponse
+// parseResponse parses a Prometheus API response and extracts the data.
+func parseResponse(bodyBytes []byte) (json.RawMessage, error) {
+	var resp response
 	if err := json.Unmarshal(bodyBytes, &resp); err != nil {
 		return nil, fmt.Errorf("unmarshalling response: %w", err)
 	}
@@ -88,7 +93,7 @@ func parsePrometheusResponse(bodyBytes []byte) (json.RawMessage, error) {
 }
 
 // fetchLabels fetches label names from Prometheus.
-func (c *prometheusClient) fetchLabels(ctx context.Context, startRFC3339, endRFC3339 string) ([]string, error) {
+func (c *client) fetchLabels(ctx context.Context, startRFC3339, endRFC3339 string) ([]string, error) {
 	params := url.Values{}
 
 	if startRFC3339 != "" {
@@ -112,7 +117,7 @@ func (c *prometheusClient) fetchLabels(ctx context.Context, startRFC3339, endRFC
 		return nil, err
 	}
 
-	data, err := parsePrometheusResponse(bodyBytes)
+	data, err := parseResponse(bodyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +131,7 @@ func (c *prometheusClient) fetchLabels(ctx context.Context, startRFC3339, endRFC
 }
 
 // fetchLabelValues fetches values for a specific label from Prometheus.
-func (c *prometheusClient) fetchLabelValues(ctx context.Context, labelName, startRFC3339, endRFC3339 string) ([]string, error) {
+func (c *client) fetchLabelValues(ctx context.Context, labelName, startRFC3339, endRFC3339 string) ([]string, error) {
 	params := url.Values{}
 
 	if startRFC3339 != "" {
@@ -151,7 +156,7 @@ func (c *prometheusClient) fetchLabelValues(ctx context.Context, labelName, star
 		return nil, err
 	}
 
-	data, err := parsePrometheusResponse(bodyBytes)
+	data, err := parseResponse(bodyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -164,14 +169,14 @@ func (c *prometheusClient) fetchLabelValues(ctx context.Context, labelName, star
 	return values, nil
 }
 
-// PrometheusQueryResult represents a query result from Prometheus.
-type PrometheusQueryResult struct {
+// QueryResult represents a query result from Prometheus.
+type QueryResult struct {
 	ResultType string `json:"resultType"`
 	Result     any    `json:"result"`
 }
 
 // query executes a PromQL query against Prometheus.
-func (c *prometheusClient) query(ctx context.Context, expr string, timeRFC3339 string) (*PrometheusQueryResult, error) {
+func (c *client) query(ctx context.Context, expr string, timeRFC3339 string) (*QueryResult, error) {
 	params := url.Values{}
 	params.Add("query", expr)
 
@@ -188,12 +193,12 @@ func (c *prometheusClient) query(ctx context.Context, expr string, timeRFC3339 s
 		return nil, err
 	}
 
-	data, err := parsePrometheusResponse(bodyBytes)
+	data, err := parseResponse(bodyBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	var result PrometheusQueryResult
+	var result QueryResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("unmarshalling query result: %w", err)
 	}
@@ -202,7 +207,7 @@ func (c *prometheusClient) query(ctx context.Context, expr string, timeRFC3339 s
 }
 
 // queryRange executes a range PromQL query against Prometheus.
-func (c *prometheusClient) queryRange(ctx context.Context, expr, startRFC3339, endRFC3339 string, stepSeconds int) (*PrometheusQueryResult, error) {
+func (c *client) queryRange(ctx context.Context, expr, startRFC3339, endRFC3339 string, stepSeconds int) (*QueryResult, error) {
 	params := url.Values{}
 	params.Add("query", expr)
 
@@ -225,12 +230,12 @@ func (c *prometheusClient) queryRange(ctx context.Context, expr, startRFC3339, e
 		return nil, err
 	}
 
-	data, err := parsePrometheusResponse(bodyBytes)
+	data, err := parseResponse(bodyBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	var result PrometheusQueryResult
+	var result QueryResult
 	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("unmarshalling query range result: %w", err)
 	}
@@ -238,8 +243,8 @@ func (c *prometheusClient) queryRange(ctx context.Context, expr, startRFC3339, e
 	return &result, nil
 }
 
-// getDefaultPrometheusTimeRange returns default start/end times if not specified (last 1 hour).
-func getDefaultPrometheusTimeRange(startRFC3339, endRFC3339 string) (string, string) {
+// getDefaultTimeRange returns default start/end times if not specified (last 1 hour).
+func getDefaultTimeRange(startRFC3339, endRFC3339 string) (string, string) {
 	now := time.Now().UTC()
 	if endRFC3339 == "" {
 		endRFC3339 = now.Format(time.RFC3339)
@@ -250,10 +255,10 @@ func getDefaultPrometheusTimeRange(startRFC3339, endRFC3339 string) (string, str
 	return startRFC3339, endRFC3339
 }
 
-// enforcePrometheusLimit ensures the limit doesn't exceed the maximum.
-func enforcePrometheusLimit(requestedLimit, maxLimit int) int {
+// enforceLimit ensures the limit doesn't exceed the maximum.
+func enforceLimit(requestedLimit, maxLimit int) int {
 	if requestedLimit <= 0 {
-		return DefaultPrometheusLimit
+		return DefaultLimit
 	}
 	if maxLimit > 0 && requestedLimit > maxLimit {
 		return maxLimit

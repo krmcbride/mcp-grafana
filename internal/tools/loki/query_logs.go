@@ -1,4 +1,4 @@
-package tools
+package loki
 
 import (
 	"context"
@@ -35,8 +35,7 @@ type LogEntry struct {
 	Labels    map[string]string `json:"labels"`
 }
 
-// QueryLokiLogsParams defines parameters for querying Loki logs.
-type QueryLokiLogsParams struct {
+type queryLogsParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	LogQL         string `json:"logql"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
@@ -45,7 +44,7 @@ type QueryLokiLogsParams struct {
 	Direction     string `json:"direction,omitempty"`
 }
 
-func (c *lokiClient) fetchLogs(ctx context.Context, query, startRFC3339, endRFC3339 string, limit int, direction string) ([]logStream, error) {
+func (c *client) fetchLogs(ctx context.Context, query, startRFC3339, endRFC3339 string, limit int, direction string) ([]logStream, error) {
 	params := url.Values{}
 	params.Add("query", query)
 
@@ -78,13 +77,13 @@ func (c *lokiClient) fetchLogs(ctx context.Context, query, startRFC3339, endRFC3
 	return response.Data.Result, nil
 }
 
-func queryLokiLogsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params QueryLokiLogsParams
+func queryLogsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params queryLogsParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newLokiClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Loki client: %v", err)), nil
 	}
@@ -97,7 +96,7 @@ func queryLokiLogsHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 		direction = "backward" // Newest first by default
 	}
 
-	streams, err := client.fetchLogs(ctx, params.LogQL, startTime, endTime, limit, direction)
+	streams, err := c.fetchLogs(ctx, params.LogQL, startTime, endTime, limit, direction)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -163,7 +162,7 @@ func queryLokiLogsHandler(ctx context.Context, request mcp.CallToolRequest) (*mc
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newQueryLokiLogsTool() mcp.Tool {
+func newQueryLogsTool() mcp.Tool {
 	return mcp.NewTool(
 		"query_loki_logs",
 		mcp.WithDescription("Executes a LogQL query against a Loki datasource to retrieve log entries. Supports full LogQL syntax including label matchers, filters, and pipeline operations (e.g., '{app=\"nginx\"} |= \"error\"'). Returns a list of log entries with timestamp, labels, and log line. Defaults to last hour, 10 entries, newest first. Consider using query_loki_stats first to check query size."),
@@ -190,7 +189,7 @@ func newQueryLokiLogsTool() mcp.Tool {
 	)
 }
 
-// RegisterQueryLokiLogs registers the query_loki_logs tool with the MCP server.
-func RegisterQueryLokiLogs(s *server.MCPServer) {
-	s.AddTool(newQueryLokiLogsTool(), queryLokiLogsHandler)
+// RegisterQueryLogs registers the query_loki_logs tool with the MCP server.
+func RegisterQueryLogs(s *server.MCPServer) {
+	s.AddTool(newQueryLogsTool(), queryLogsHandler)
 }

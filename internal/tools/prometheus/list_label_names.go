@@ -1,4 +1,4 @@
-package tools
+package prometheus
 
 import (
 	"context"
@@ -9,33 +9,32 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// ListPrometheusLabelNamesParams defines the parameters for listing Prometheus label names.
-type ListPrometheusLabelNamesParams struct {
+type listLabelNamesParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
 	EndRFC3339    string `json:"endRfc3339,omitempty"`
 	Limit         int    `json:"limit,omitempty"`
 }
 
-func listPrometheusLabelNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params ListPrometheusLabelNamesParams
+func listLabelNamesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params listLabelNamesParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newPrometheusClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Prometheus client: %v", err)), nil
 	}
 
-	startTime, endTime := getDefaultPrometheusTimeRange(params.StartRFC3339, params.EndRFC3339)
-	labels, err := client.fetchLabels(ctx, startTime, endTime)
+	startTime, endTime := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
+	labels, err := c.fetchLabels(ctx, startTime, endTime)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	// Apply limit
-	limit := enforcePrometheusLimit(params.Limit, 0)
+	limit := enforceLimit(params.Limit, 0)
 	if len(labels) > limit {
 		labels = labels[:limit]
 	}
@@ -52,7 +51,7 @@ func listPrometheusLabelNamesHandler(ctx context.Context, request mcp.CallToolRe
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newListPrometheusLabelNamesTool() mcp.Tool {
+func newListLabelNamesTool() mcp.Tool {
 	return mcp.NewTool(
 		"list_prometheus_label_names",
 		mcp.WithDescription("Lists all available label names in a Prometheus datasource. "+
@@ -74,7 +73,7 @@ func newListPrometheusLabelNamesTool() mcp.Tool {
 	)
 }
 
-// RegisterListPrometheusLabelNames registers the list_prometheus_label_names tool.
-func RegisterListPrometheusLabelNames(s *server.MCPServer) {
-	s.AddTool(newListPrometheusLabelNamesTool(), listPrometheusLabelNamesHandler)
+// RegisterListLabelNames registers the list_prometheus_label_names tool.
+func RegisterListLabelNames(s *server.MCPServer) {
+	s.AddTool(newListLabelNamesTool(), listLabelNamesHandler)
 }

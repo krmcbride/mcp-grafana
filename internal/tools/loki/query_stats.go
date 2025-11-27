@@ -1,4 +1,4 @@
-package tools
+package loki
 
 import (
 	"context"
@@ -18,15 +18,14 @@ type Stats struct {
 	Bytes   int `json:"bytes"`
 }
 
-// QueryLokiStatsParams defines parameters for querying Loki statistics.
-type QueryLokiStatsParams struct {
+type queryStatsParams struct {
 	DatasourceUID string `json:"datasourceUid"`
 	LogQL         string `json:"logql"`
 	StartRFC3339  string `json:"startRfc3339,omitempty"`
 	EndRFC3339    string `json:"endRfc3339,omitempty"`
 }
 
-func (c *lokiClient) fetchStats(ctx context.Context, query, startRFC3339, endRFC3339 string) (*Stats, error) {
+func (c *client) fetchStats(ctx context.Context, query, startRFC3339, endRFC3339 string) (*Stats, error) {
 	params := url.Values{}
 	params.Add("query", query)
 
@@ -47,20 +46,20 @@ func (c *lokiClient) fetchStats(ctx context.Context, query, startRFC3339, endRFC
 	return &stats, nil
 }
 
-func queryLokiStatsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	var params QueryLokiStatsParams
+func queryStatsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	var params queryStatsParams
 	if err := request.BindArguments(&params); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid parameters: %v", err)), nil
 	}
 
-	client, err := newLokiClient(params.DatasourceUID)
+	c, err := newClient(params.DatasourceUID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("creating Loki client: %v", err)), nil
 	}
 
 	startTime, endTime := getDefaultTimeRange(params.StartRFC3339, params.EndRFC3339)
 
-	stats, err := client.fetchStats(ctx, params.LogQL, startTime, endTime)
+	stats, err := c.fetchStats(ctx, params.LogQL, startTime, endTime)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -73,7 +72,7 @@ func queryLokiStatsHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 	return mcp.NewToolResultText(string(jsonData)), nil
 }
 
-func newQueryLokiStatsTool() mcp.Tool {
+func newQueryStatsTool() mcp.Tool {
 	return mcp.NewTool(
 		"query_loki_stats",
 		mcp.WithDescription("Retrieves statistics about log streams matching a LogQL selector within a Loki datasource and time range. Returns counts of streams, chunks, entries, and bytes. The logql parameter must be a simple label selector (e.g., '{app=\"nginx\"}') and does not support line filters or aggregations. Useful for checking query size before fetching logs. Defaults to the last hour."),
@@ -94,7 +93,7 @@ func newQueryLokiStatsTool() mcp.Tool {
 	)
 }
 
-// RegisterQueryLokiStats registers the query_loki_stats tool with the MCP server.
-func RegisterQueryLokiStats(s *server.MCPServer) {
-	s.AddTool(newQueryLokiStatsTool(), queryLokiStatsHandler)
+// RegisterQueryStats registers the query_loki_stats tool with the MCP server.
+func RegisterQueryStats(s *server.MCPServer) {
+	s.AddTool(newQueryStatsTool(), queryStatsHandler)
 }
