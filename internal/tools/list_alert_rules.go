@@ -15,6 +15,12 @@ type ListAlertRulesParams struct {
 	Limit        int  `json:"limit,omitempty"`
 }
 
+// alertStateKey creates a key for matching alerts across APIs.
+// Uses title + ruleGroup since the Prometheus API doesn't return UIDs.
+func alertStateKey(title, ruleGroup string) string {
+	return title + "|" + ruleGroup
+}
+
 func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var params ListAlertRulesParams
 	if err := request.BindArguments(&params); err != nil {
@@ -31,40 +37,31 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 		limit = DefaultAlertRulesLimit
 	}
 
-	// If state is requested, use the Prometheus-style API
-	if params.IncludeState {
-		summaries, err := client.getAlertRulesWithState(ctx)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		// Apply limit
-		if len(summaries) > limit {
-			summaries = summaries[:limit]
-		}
-
-		if len(summaries) == 0 {
-			summaries = []AlertRuleSummary{}
-		}
-
-		jsonData, err := json.MarshalIndent(summaries, "", "  ")
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("marshalling result: %v", err)), nil
-		}
-
-		return mcp.NewToolResultText(string(jsonData)), nil
-	}
-
-	// Otherwise use the provisioning API
+	// Always get rules from provisioning API (this has UIDs)
 	rules, err := client.listAlertRules(ctx, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Convert to summaries
+	// Build state map if state is requested
+	stateMap := make(map[string]AlertRuleSummary)
+	if params.IncludeState {
+		stateRules, stateErr := client.getAlertRulesWithState(ctx)
+		if stateErr != nil {
+			// Log but continue - we can still return rules without state
+			// State is nice-to-have, UIDs are essential
+		} else {
+			for _, sr := range stateRules {
+				key := alertStateKey(sr.Title, sr.RuleGroup)
+				stateMap[key] = sr
+			}
+		}
+	}
+
+	// Convert to summaries, enriching with state if available
 	summaries := make([]AlertRuleSummary, 0, len(rules))
 	for _, r := range rules {
-		summaries = append(summaries, AlertRuleSummary{
+		summary := AlertRuleSummary{
 			UID:         r.UID,
 			Title:       r.Title,
 			FolderUID:   r.FolderUID,
@@ -73,7 +70,18 @@ func listAlertRulesHandler(ctx context.Context, request mcp.CallToolRequest) (*m
 			Labels:      r.Labels,
 			Annotations: r.Annotations,
 			IsPaused:    r.IsPaused,
-		})
+		}
+
+		// Enrich with state if available
+		if params.IncludeState {
+			key := alertStateKey(r.Title, r.RuleGroup)
+			if stateSummary, ok := stateMap[key]; ok {
+				summary.State = stateSummary.State
+				summary.Health = stateSummary.Health
+			}
+		}
+
+		summaries = append(summaries, summary)
 	}
 
 	if len(summaries) == 0 {
