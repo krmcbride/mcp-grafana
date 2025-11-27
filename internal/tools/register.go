@@ -18,6 +18,11 @@ func RegisterMCPTools(s *server.MCPServer) {
 	RegisterListPrometheusMetricNames(s)
 	RegisterQueryPrometheus(s)
 
+	// Register Dashboard tools
+	RegisterSearchDashboards(s)
+	RegisterGetDashboardSummary(s)
+	RegisterGetDashboardPanelQueries(s)
+
 	// Register Alerting tools
 	RegisterListAlertRules(s)
 	RegisterGetAlertRuleByUID(s)
