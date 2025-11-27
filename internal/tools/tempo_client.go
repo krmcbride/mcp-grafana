@@ -7,10 +7,32 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/krmcbride/mcp-grafana/internal/grafana"
 )
+
+// uint64String unmarshals a JSON string into a uint64.
+// Tempo's protobuf API serializes uint64 values as strings to avoid JavaScript precision issues.
+type uint64String uint64
+
+func (u *uint64String) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*u = 0
+		return nil
+	}
+	v, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("parsing uint64 from string %q: %w", s, err)
+	}
+	*u = uint64String(v)
+	return nil
+}
 
 const (
 	DefaultTempoTraceLimit = 20
@@ -168,9 +190,12 @@ type TempoAttribute struct {
 }
 
 // TempoSearchMetrics represents metrics from a search query.
+// Field types match Tempo's protobuf definition.
+// NOTE: uint64 fields are serialized as strings in JSON (protobuf convention for 64-bit ints),
+// while uint32 fields come through as regular JSON numbers.
 type TempoSearchMetrics struct {
-	InspectedTraces int `json:"inspectedTraces,omitempty"`
-	InspectedBytes  int `json:"inspectedBytes,omitempty"`
+	InspectedTraces int          `json:"inspectedTraces,omitempty"` // uint32 in proto → JSON number
+	InspectedBytes  uint64String `json:"inspectedBytes,omitempty"`  // uint64 in proto → JSON string
 }
 
 // searchTraces searches for traces using TraceQL.
