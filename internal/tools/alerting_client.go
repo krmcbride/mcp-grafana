@@ -50,7 +50,7 @@ func (c *alertingClient) makeRequest(ctx context.Context, method, path string, p
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

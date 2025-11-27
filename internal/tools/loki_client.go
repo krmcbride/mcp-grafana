@@ -79,7 +79,7 @@ func (c *lokiClient) makeRequest(ctx context.Context, method, path string, param
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check for non-200 status code
 	if resp.StatusCode != http.StatusOK {

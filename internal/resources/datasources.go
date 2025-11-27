@@ -54,7 +54,7 @@ func datasourcesHandler(ctx context.Context, request mcp.ReadResourceRequest) ([
 	if err != nil {
 		return nil, fmt.Errorf("fetching datasources: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {

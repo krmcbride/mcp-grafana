@@ -52,7 +52,7 @@ func (c *prometheusClient) makeRequest(ctx context.Context, method, path string,
 	if err != nil {
 		return nil, fmt.Errorf("executing request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -81,7 +81,7 @@ func parsePrometheusResponse(bodyBytes []byte) (json.RawMessage, error) {
 	}
 
 	if resp.Status != "success" {
-		return nil, fmt.Errorf("Prometheus API error: %s", resp.Error)
+		return nil, fmt.Errorf("prometheus API error: %s", resp.Error)
 	}
 
 	return resp.Data, nil
