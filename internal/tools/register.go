@@ -11,4 +11,8 @@ func RegisterMCPTools(s *server.MCPServer) {
 	RegisterListLokiLabelValues(s)
 	RegisterQueryLokiStats(s)
 	RegisterQueryLokiLogs(s)
+
+	// Register Alerting tools
+	RegisterListAlertRules(s)
+	RegisterGetAlertRuleByUID(s)
 }
